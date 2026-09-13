@@ -1,0 +1,182 @@
+version: 1
+rules:
+  - id: rule.rm_root
+    description: 禁止删除根目录或关键系统目录
+    pattern: '\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*r)\s+(/|(/etc|/boot|/usr|/var|/var/lib|/home|/root|/lib|/bin|/sbin)(/|\s|$))'
+    level: BLOCKED
+    reason: rm -rf 根目录或关键系统目录会破坏系统，不可逆
+    suggestions:
+      - 改为删除具体文件或特定子目录
+      - 执行前先 ls 确认目标
+      - 优先使用 trash-cli 可回收的工具
+
+  - id: rule.rm_root_short
+    description: 裸 rm -rf / 形式（含无空格拼接）
+    pattern: '\brm\s+-[a-zA-Z]*rf[a-zA-Z]*\s+/(\s|$|\*)'
+    level: BLOCKED
+    reason: rm -rf / 会清空整台服务器
+    suggestions:
+      - 严禁直接 rm -rf 根目录
+
+  - id: rule.mkfs
+    description: 禁止格式化文件系统
+    pattern: '\bmkfs(\.[a-z0-9]+)?\s'
+    level: BLOCKED
+    reason: 格式化会清空整个文件系统
+    suggestions:
+      - 请确认目标磁盘并非系统盘
+      - 离线备份后再手动执行
+
+  - id: rule.dd_block_device
+    description: 禁止用 dd 直接写入块设备
+    pattern: '\bdd\b[^\n]*of=\s*/dev/(sd|nvme|xvd|mmcblk|vd)'
+    level: BLOCKED
+    reason: dd 直写块设备会损毁硬盘数据
+    suggestions:
+      - 改为写入普通文件（of=/tmp/...）
+      - 备份/还原优先使用 rsync、tar
+
+  - id: rule.parted_destructive
+    description: 禁止 parted 破坏性操作（建分区表/删分区）
+    pattern: '\bparted\b[^\n]*(mklabel|mkpart|rm\s+\d|resizepart|rescue)'
+    level: BLOCKED
+    reason: parted 分区操作会清空磁盘数据，不可逆
+    suggestions:
+      - 操作前必须备份数据
+      - 确认目标设备不是系统盘
+      - 通过云平台控制台执行分区操作更安全
+
+  - id: rule.fdisk_write
+    description: 禁止 fdisk 写入分区表
+    pattern: '\bfdisk\b[^\n]*/dev/(sd|nvme|xvd|mmcblk|vd)'
+    level: BLOCKED
+    reason: fdisk 修改分区表会导致数据丢失
+    suggestions:
+      - 操作前必须备份数据
+      - 确认目标设备不是系统盘
+
+  - id: rule.wipefs
+    description: 禁止 wipefs 擦除文件系统签名
+    pattern: '\bwipefs\b'
+    level: BLOCKED
+    reason: wipefs 会清除磁盘上的文件系统标识，导致数据不可访问
+    suggestions:
+      - 请确认目标磁盘数据已备份
+
+  - id: rule.shred_device
+    description: 禁止 shred 擦除块设备
+    pattern: '\bshred\b[^\n]*/dev/(sd|nvme|xvd|mmcblk|vd)'
+    level: BLOCKED
+    reason: shred 会不可逆地覆写磁盘所有数据
+    suggestions:
+      - 此操作不可恢复，请通过专业安全销毁流程处理
+
+  - id: rule.sgdisk
+    description: 禁止 sgdisk 操作磁盘分区
+    pattern: '\bsgdisk\b'
+    level: BLOCKED
+    reason: sgdisk 修改 GPT 分区表，操作不可逆
+    suggestions:
+      - 操作前必须备份数据
+
+  - id: rule.write_block_device
+    description: 禁止直接写入块设备文件
+    pattern: '>\s*/dev/(sd[a-z]|nvme\d|xvd[a-z]|vd[a-z]|mmcblk\d)(\d*)?(\s|$)'
+    level: BLOCKED
+    reason: 直接重定向写入块设备会覆盖分区表或文件系统
+    suggestions:
+      - 请使用文件系统层面的工具操作，不要直接写裸设备
+
+  - id: rule.fork_bomb
+    description: 禁止 fork bomb
+    pattern: ':\(\)\s*\{\s*:\|:&\s*\};:'
+    level: BLOCKED
+    reason: fork bomb 会耗尽进程槽导致系统瘫痪
+    suggestions: []
+
+  - id: rule.shutdown
+    description: 关机或重启
+    pattern: '\b(reboot|shutdown|halt|poweroff|init\s+0|init\s+6)\b'
+    level: HIGH
+    reason: 会造成业务中断
+    suggestions:
+      - 请在维护窗口执行
+      - 关键服务先优雅停止
+
+  - id: rule.userdel_home
+    description: 删除用户家目录
+    pattern: '\buserdel\b[^\n]*-r\b'
+    level: HIGH
+    reason: -r 会同时删除用户家目录与邮件池，不可恢复
+    suggestions:
+      - 先备份 /home/<user>
+      - 确认该用户无关键数据
+
+  - id: rule.firewall_flush
+    description: 清空防火墙规则
+    pattern: '\b(iptables|ip6tables)\s+-F\b|\bnft\s+flush\s+ruleset\b'
+    level: HIGH
+    reason: 清空防火墙会打开所有端口
+    suggestions:
+      - 先 iptables-save > /tmp/rules.bak 备份
+      - 建议逐条调整而非全量清空
+
+  - id: rule.chmod_wide
+    description: 大范围 chmod 777
+    pattern: '\bchmod\b[^\n]*(\b777\b[^\n]*-R\b|-R\b[^\n]*\b777\b)'
+    level: HIGH
+    reason: 递归 777 会暴露敏感文件
+    suggestions:
+      - 改为最小必要权限（如 755、644）
+      - 只针对目标子目录执行
+
+  - id: rule.chown_wide
+    description: 大范围 chown 系统目录
+    pattern: '\bchown\b[^\n]*-R\b[^\n]*(/|/etc|/usr|/var|/lib)(/|\s|$)'
+    level: HIGH
+    reason: 递归 chown 系统目录会破坏权限模型
+    suggestions:
+      - 只对具体业务目录操作
+
+  - id: rule.pipe_to_shell
+    description: 直接 pipe 远程脚本到 shell 执行
+    pattern: '\b(curl|wget)\b[^\n]*\|\s*(sh|bash|zsh)\b'
+    level: HIGH
+    reason: 未校验直接执行远程脚本存在供应链风险
+    suggestions:
+      - 先 curl -o 下载后 review
+      - 核对 SHA256 校验
+
+  - id: rule.ssh_service_stop
+    description: 停止 SSH 服务
+    pattern: '\bsystemctl\s+(stop|disable|mask)\s+(ssh|sshd)(\.service)?\b'
+    level: HIGH
+    reason: 停止 SSH 将导致远程连接失效
+    suggestions:
+      - 确认有带外管理通道
+      - 改为修改配置并 reload
+
+  - id: rule.killall_critical
+    description: 强杀核心进程
+    pattern: '\bkillall\s+-9\s+(systemd|sshd|init|udevd|dbus)\b'
+    level: HIGH
+    reason: 强杀核心进程会导致系统不可用
+    suggestions:
+      - 改为 systemctl restart 对应服务
+
+  - id: rule.user_create
+    description: 创建普通用户
+    pattern: '\buseradd\b'
+    level: MEDIUM
+    reason: 新增 shell 账号，涉及权限授予
+    suggestions:
+      - 新用户默认放入 users 组
+      - 记得设置强密码或禁用密码登录
+
+  - id: rule.service_restart
+    description: 重启/热加载服务
+    pattern: '\bsystemctl\s+(restart|reload)\b'
+    level: MEDIUM
+    reason: 会造成服务短暂中断或 RPC 闪断
+    suggestions:
+      - 请在业务低峰执行

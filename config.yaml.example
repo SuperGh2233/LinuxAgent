@@ -1,0 +1,37 @@
+llm:
+  provider: deepseek
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat
+  temperature: 0.2
+  max_tokens: 2048
+  timeout_s: 60
+
+ssh:
+  host: 192.168.1.100
+  port: 22
+  username: root
+  auth_mode: password          # password | key
+  key_path: ~/.ssh/id_rsa
+  default_timeout_s: 30
+
+agent:
+  max_steps: 8
+  history_limit: 20
+  language: zh-CN
+
+safety:
+  rules_path: linuxagent/safety/rules.yaml
+  enable_semantic_review: true
+  semantic_timeout_s: 5.0
+  require_confirmation_on_high: true
+
+logging:
+  level: INFO
+  file: logs/app.log
+  rotation: "1 day"
+  retention: "7 days"
+
+ui:
+  web_host: 0.0.0.0
+  web_port: 7860
+  theme: default

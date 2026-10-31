@@ -201,6 +201,6 @@ LINUXAGENT_INTEGRATION=1 pytest tests/test_integration.py -v
 - [Linux 目标主机准备](docs/LINUX_SETUP.md)
 - [项目说明](APPLICATION.md)
 
-## License
+## 许可证
 
-[MIT](LICENSE)
+当前仓库根目录未提供独立的 LICENSE 文件。使用或再分发前，请先确认代码来源与授权范围。
